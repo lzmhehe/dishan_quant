@@ -6,20 +6,23 @@ import datetime
 from backtrader.feeds import PandasData
 
 '''
-target ： 沪深300 |007339.OF 易方达沪深300ETF联接C
-因为易方达沪深300ETF联接C 成立日期 2019年，所以使用A的基金，C的费用
-
 信号量：北向资金
-历史的北向资金由高到低 排序
+历史的北向资金由高到低排序
 如果当前的北向资金落入到100-70 区间，则买入
 如果落入到30-0区间，则卖出 
 中间部分持有
-初始资金10等分，每次买卖 1/10
 
 资金用光停止买入，空仓，停止卖出
 不考虑持有7天内 1.5% 的交易费
-用C 基金，没有交易费，管理费暂时按照交易的0.0003粗算
+用C基金，没有交易费，管理费暂时忽略
 场外基金交易，不考虑滑点
+
+买入两种策略
+1.1次现金的95%
+2.分5手买入，每次20%，没有现金不再买入，没有持仓，不能卖
+
+target ： 沪深300 |007339.OF 易方达沪深300ETF联接C
+因为易方达沪深300ETF联接C 成立日期 2019年，所以使用A的基金净值，C的费用
 
 ref:
 fetch300etf.py
@@ -73,7 +76,7 @@ def calcBugTag(num, percent30, percent70):
 
 
 def downcast(amount, lot):
-    return abs(amount//lot*lot)
+    return abs(amount // lot * lot)
 
 
 # 'datetime', 'open', 'high', 'low', 'close', 'volume', 'openinterest'
@@ -97,9 +100,8 @@ df['openinterest'].fillna(0)
 
 df = df[['trade_date', 'open', 'high', 'low', 'low', 'volume', 'openinterest', "north_money", "tag"]]
 df.columns = ['datetime', 'open', 'high', 'low', 'close', 'volume', 'openinterest', "north_money", "tag"]
-# print(df.head())
-# print(df.columns)
 df.to_csv("tmp3.csv", index=False)
+
 
 # 自定义策略
 class MyStrategy(bt.Strategy):
@@ -113,7 +115,7 @@ class MyStrategy(bt.Strategy):
         self.order = None  # 记录订单
         self.currentHands = 0
         self.order_list = []
-        self.max_hands=1
+        self.max_hands = 5
 
     def next(self):
         if self.data.tag[0] == 1:  # 买入信号
@@ -121,7 +123,8 @@ class MyStrategy(bt.Strategy):
                 # 永远不要满仓买入某只股票
                 # order_value = self.broker.getcash()/(self.max_hands-self.currentHands)
                 # self.log(f"cash:{self.broker.getcash()},order_value:{order_value}")
-                order_value=self.broker.getcash()*0.95
+                # order_value = self.broker.getcash() * 0.95
+                order_value = 20000
                 order_amount = downcast(order_value / self.datas[0].close[0], 100)
                 self.order = self.buy(self.datas[0], size=order_amount, name=self.datas[0]._name)
                 order = self.order
@@ -195,7 +198,7 @@ class MyStrategy(bt.Strategy):
 
 class PandasData_Extend(PandasData):
     # Add a 'tag' line to the inherited ones from the base class
-    lines = ( 'north_money','tag',)
+    lines = ('north_money', 'tag',)
     # 现在是(open,0), ... , (openinterest,5)这6列，所以增加1
     # add the parameter to the parameters inherited from the base class
     df.columns = ['datetime', 'open', 'high', 'low', 'close', 'volume', 'openinterest', "north_money", "tag"]
@@ -225,11 +228,11 @@ cerebro = bt.Cerebro()
 
 # 添加数据至回测系统
 # data = bt.feeds.PandasData(dataname=df.set_index('datetime'))
-st_date = datetime.datetime(2015,1,1)
-end_date = datetime.datetime(2023,5,1)
+st_date = datetime.datetime(2015, 1, 1)
+end_date = datetime.datetime(2023, 5, 1)
 # datafeed1 = bt.feeds.PandasData(dataname=data1, fromdate=st_date, todate=end_date)
 
-data = PandasData_Extend(dataname=df,fromdate=st_date, todate=end_date)
+data = PandasData_Extend(dataname=df, fromdate=st_date, todate=end_date)
 
 cerebro.adddata(data)
 # cerebro.adddata(df.set_index('datetime'))
@@ -243,12 +246,6 @@ cerebro.broker.setcash(100000)
 # cerebro.broker.setcommission(commission=0.0003)
 # 滑点：双边各 0.0001
 # cerebro.broker.set_slippage_perc(perc=0.0001)
-
-# cerebro.addanalyzer(bt.analyzers.TimeReturn, _name='pnl')  # 返回收益率时序数据
-# cerebro.addanalyzer(bt.analyzers.AnnualReturn, _name='_AnnualReturn')  # 年化收益率
-# cerebro.addanalyzer(bt.analyzers.SharpeRatio, _name='_SharpeRatio')  # 夏普比率
-# cerebro.addanalyzer(bt.analyzers.DrawDown, _name='_DrawDown')  # 回撤
-
 
 cerebro.addanalyzer(bt.analyzers.AnnualReturn, _name='_AnnualReturn')
 # 计算最大回撤相关指标
@@ -266,24 +263,17 @@ cerebro.addanalyzer(bt.analyzers.TimeReturn, _name='_TimeReturn')
 result = cerebro.run()
 
 # 提取结果
-print("--------------- AnnualReturn -----------------")
+print("--------------- 年化 -----------------")
 print(result[0].analyzers._AnnualReturn.get_analysis())
-print("--------------- DrawDown -----------------")
+print("--------------- 最大回撤 -----------------")
 print(result[0].analyzers._DrawDown.get_analysis())
-print("--------------- Returns -----------------")
+print("--------------- 收益 -----------------")
 print(result[0].analyzers._Returns.get_analysis())
-print("--------------- SharpeRatio -----------------")
+print("--------------- 夏普率 -----------------")
 print(result[0].analyzers._SharpeRatio.get_analysis())
 print("--------------- SharpeRatio_A -----------------")
 print(result[0].analyzers._SharpeRatio_A.get_analysis())
 
-# AutoOrderedDict([('len', 56),
-# ('drawdown', 8.085458202746946e-05),
-# ('moneydown', 8.08547225035727),
-# ('max',
-# AutoOrderedDict([('len', 208),
-# ('drawdown', 0.00015969111320873712),
-# ('moneydown', 15.969112889841199)]))])
 # # 常用指标提取
 analyzer = {}
 # 提取年化收益
@@ -301,8 +291,7 @@ print(analyzer)
 portfolio_value = cerebro.broker.getvalue()  # 总体收益
 returns = (portfolio_value - 100000) / 100000  # 收益率
 # max_drawdown = cerebro.broker.ge # 最大回撤
-df =pd.Series( result[0].analyzers._AnnualReturn.get_analysis())
-print(df.head())
+df = pd.Series(result[0].analyzers._AnnualReturn.get_analysis())
 # 计算年化收益率
 # start_date = data.index[0]
 # end_date = data.index[-1]
@@ -317,18 +306,28 @@ print(df.head())
 # print(f"最大回撤：{max_drawdown:.2%}")
 
 
-# cerebro.plot(style='candlestick')
-# -21.63,-5.20,27.21,36.07,-25.31,21.78,-11.28,5.58  hs300
-# -18.96,-2.43,29.72,35.81,-22.20,22.63,-8.04,6.73
+cerebro.plot(style='candlestick')
 
-# 2022,2021,2020,2019,2018,2017,2016,2015
+hs300_nor = [-21.63, -5.20, 27.21, 36.07, -25.31, 21.78, -11.28, 5.58]
+target_nor = [-18.96, -2.43, 29.72, 35.81, -22.20, 22.63, -8.04, 6.73]
+date_ser = [2022, 2021, 2020, 2019, 2018, 2017, 2016, 2015]
 
-hs300_nor=[-21.63,-5.20,27.21,36.07,-25.31,21.78,-11.28,5.58]
-target_nor=[]
+plData = {
+    "hs300_nor": hs300_nor,
+    "target_nor": target_nor,
+    "date_ser": date_ser
+}
+# df = pd.DataFrame(data, index = ["day1", "day2", "day3"])
+data = result[0].analyzers._AnnualReturn.get_analysis()
+
+df = pd.DataFrame(plData)
+df["profit"] = df.apply(lambda x: data.get(x["date_ser"]) * 100, axis=1)
+df = df[["date_ser", "hs300_nor", "target_nor", "profit"]]
+df = df.sort_values("date_ser")
 
 
 # 绘制策略曲线
-def draw_equity_curve(df, data_dict, time='交易日期', pic_size=[16, 9], dpi=72, font_size=25):
+def draw_equity_curve(df, data_dict, time='date_ser', pic_size=[16, 9], dpi=72, font_size=25):
     plt.figure(figsize=(pic_size[0], pic_size[1]), dpi=dpi)
     plt.xticks(fontsize=font_size)
     plt.yticks(fontsize=font_size)
@@ -337,4 +336,7 @@ def draw_equity_curve(df, data_dict, time='交易日期', pic_size=[16, 9], dpi=
     plt.legend(fontsize=font_size)
     plt.show()
 
-# draw_equity_curve(df, data_dict={'北向择时_错误': '错误策略资金曲线', '北向择时_正确': '正确策略资金曲线', '沪深300': 'benchmark'})
+
+plt.rcParams['font.sans-serif'] = ['SimHei']
+plt.rcParams['axes.unicode_minus'] = False
+draw_equity_curve(df, data_dict={'沪深300': 'hs300_nor', '易方达沪深300ETF': 'target_nor', '测试收益': 'profit'})

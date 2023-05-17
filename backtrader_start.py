@@ -14,14 +14,6 @@ def get_single_kdata(code, start='2023-02-01', end='2023-02-09', index=False):
     return df[['date', 'open', 'high', 'low', 'close', 'volume', 'openinterest']]
 
 
-# def get_single_kdata(code, start='2020-01-01', end='2021-08-18', index=False):
-#     pro = ts.pro_api('494b41c9aaaae68f806a5bc325b7d59b01301a89f091dca93e7c9453')
-#     df = pro.index_daily(ts_code=code,start=start, end=end)
-#     df['date'] = pd.to_datetime(df['date'])
-#     df['openinterest'] = 0
-#     return df[['date', 'open', 'high', 'low', 'close', 'volume', 'openinterest']]
-
-
 # # yahoo
 # def get_single_kdata(code, start='2020-01-01', end='2021-08-18'):
 #     df = bt.feeds.YahooFinanceData(

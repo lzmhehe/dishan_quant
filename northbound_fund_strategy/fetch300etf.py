@@ -22,7 +22,7 @@ pro = ts.pro_api(token)
 
 
 pro = ts.pro_api()
-df = pro.fund_nav(ts_code='007339.OF')
+df = pro.fund_nav(ts_code='110020.OF')
 df.sort_values('nav_date', inplace=True)
 
 print(df)
