@@ -20,9 +20,14 @@ token = token_json['token']
 ts.set_token(token)
 pro = ts.pro_api(token)
 
+df_list = []
+df = pro.fund_basic(status='L')
+print(df)
+df_list.append(df)
 
-df = pro.fund_nav(ts_code='110020.OF')
-df.sort_values('nav_date', inplace=True)
+df = pro.fund_basic(status='L',offset=15000,limit=15000)
+df_list.append(df)
+df = pd.concat(df_list)
 
 print(df)
-df.to_csv('../data/110020.OF_fund_nav.csv',index=False)
+df.to_csv('../data/fund_basic.csv',index=False)

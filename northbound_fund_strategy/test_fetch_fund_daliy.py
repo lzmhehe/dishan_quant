@@ -21,8 +21,6 @@ ts.set_token(token)
 pro = ts.pro_api(token)
 
 
-df = pro.fund_nav(ts_code='110020.OF')
-df.sort_values('nav_date', inplace=True)
+df = pro.fund_daily(start_date='20170101',end_date='20170120')
 
 print(df)
-df.to_csv('../data/110020.OF_fund_nav.csv',index=False)

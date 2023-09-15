@@ -66,7 +66,7 @@ df['percent30'] = df.apply(lambda x: np.percentile(x['ser'], q=30), axis=1)
 df['percent70'] = df.apply(lambda x: np.percentile(x['ser'], q=70), axis=1)
 
 
-def calcBugTag(num, percent30, percent70):
+def calcBuyTag(num, percent30, percent70):
     if num >= percent70:
         return 1
     if num <= percent30:
@@ -80,7 +80,7 @@ def downcast(amount, lot):
 
 
 # 'datetime', 'open', 'high', 'low', 'close', 'volume', 'openinterest'
-df['tag'] = df.apply(lambda x: calcBugTag(x['north_money'], x['percent30'], x['percent70']), axis=1)
+df['tag'] = df.apply(lambda x: calcBuyTag(x['north_money'], x['percent30'], x['percent70']), axis=1)
 # df['openinterest'] = df.apply(lambda x: 0, axis=1)
 # df['openinterest'].fillna(0)
 # df = df[['trade_date', 'open', 'high', 'low', "pre_close", "vol", 'openinterest', 'tag']]
@@ -100,7 +100,7 @@ df['openinterest'].fillna(0)
 
 df = df[['trade_date', 'open', 'high', 'low', 'low', 'volume', 'openinterest', "north_money", "tag"]]
 df.columns = ['datetime', 'open', 'high', 'low', 'close', 'volume', 'openinterest', "north_money", "tag"]
-df.to_csv("tmp3.csv", index=False)
+# df.to_csv("tmp3.csv", index=False)
 
 
 # 自定义策略
@@ -115,7 +115,7 @@ class MyStrategy(bt.Strategy):
         self.order = None  # 记录订单
         self.currentHands = 0
         self.order_list = []
-        self.max_hands = 5
+        self.max_hands = 1
 
     def next(self):
         if self.data.tag[0] == 1:  # 买入信号
@@ -123,8 +123,8 @@ class MyStrategy(bt.Strategy):
                 # 永远不要满仓买入某只股票
                 # order_value = self.broker.getcash()/(self.max_hands-self.currentHands)
                 # self.log(f"cash:{self.broker.getcash()},order_value:{order_value}")
-                # order_value = self.broker.getcash() * 0.95
-                order_value = 20000
+                order_value = self.broker.getcash() * 0.95
+                # order_value = 20000
                 order_amount = downcast(order_value / self.datas[0].close[0], 100)
                 self.order = self.buy(self.datas[0], size=order_amount, name=self.datas[0]._name)
                 order = self.order
@@ -313,18 +313,19 @@ target_nor = [-18.96, -2.43, 29.72, 35.81, -22.20, 22.63, -8.04, 6.73]
 date_ser = [2022, 2021, 2020, 2019, 2018, 2017, 2016, 2015]
 
 plData = {
-    "hs300_nor": hs300_nor,
-    "target_nor": target_nor,
+    "hs300": hs300_nor,
+    "300ETF": target_nor,
     "date_ser": date_ser
 }
 # df = pd.DataFrame(data, index = ["day1", "day2", "day3"])
 data = result[0].analyzers._AnnualReturn.get_analysis()
 
 df = pd.DataFrame(plData)
-df["profit"] = df.apply(lambda x: data.get(x["date_ser"]) * 100, axis=1)
-df = df[["date_ser", "hs300_nor", "target_nor", "profit"]]
+df["strategy"] = df.apply(lambda x: data.get(x["date_ser"]) * 100, axis=1)
+df = df[["date_ser", "hs300", "300ETF", "strategy"]]
 df = df.sort_values("date_ser")
 
+print(df)
 
 # 绘制策略曲线
 def draw_equity_curve(df, data_dict, time='date_ser', pic_size=[16, 9], dpi=72, font_size=25):
@@ -337,6 +338,9 @@ def draw_equity_curve(df, data_dict, time='date_ser', pic_size=[16, 9], dpi=72, 
     plt.show()
 
 
+# plt.rcParams['font.sans-serif'] = ['SimHei']
 plt.rcParams['font.sans-serif'] = ['SimHei']
+import matplotlib
+
 plt.rcParams['axes.unicode_minus'] = False
-draw_equity_curve(df, data_dict={'沪深300': 'hs300_nor', '易方达沪深300ETF': 'target_nor', '测试收益': 'profit'})
+draw_equity_curve(df, data_dict={'沪深300': 'hs300', '易方达沪深300ETF': '300ETF', '测试收益': 'strategy'})
